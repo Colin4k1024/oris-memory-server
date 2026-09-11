@@ -3,9 +3,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/oris-experience-repo",
-    "crates/oris-experience-contract",
-    "crates/oris-genestore",
+    "crates/oris-control-plane",
+    "crates/oris-memory-contract",
+    "crates/oris-memory-store",
+    "crates/oris-memory-server",
 ]
 
 [workspace.package]

@@ -1,0 +1,38 @@
+[package]
+name = "oris-memory-store"
+version = "0.3.0"
+edition = "2021"
+description = "SQLite-based memory storage for Oris Memory Service"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Colin4k1024/Oris"
+documentation = "https://docs.rs/oris-memory-store"
+homepage = "https://github.com/Colin4k1024/Oris"
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+oris-memory-contract = { version = "0.1.0", path = "../oris-memory-contract" }
+chrono = { version = "0.4", features = ["serde"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "v7", "serde"] }
+thiserror = "1.0"
+tracing = "0.1"
+
+# PostgreSQL + pgvector
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "migrate"] }
+pgvector = { version = "0.4", features = ["sqlx"] }
+
+# Redis
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+
+# Async runtime
+tokio = { version = "1.0", features = ["rt", "macros", "sync"] }
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["rt", "macros"] }
+tempfile = "3"
+
+[features]
+default = []
