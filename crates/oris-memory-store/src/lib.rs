@@ -23,6 +23,7 @@
 
 pub mod memory_types;
 pub mod migrate;
+pub mod partition;
 pub mod postgres;
 pub mod redis;
 pub mod replay_hook;

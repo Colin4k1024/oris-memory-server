@@ -9,6 +9,7 @@ pub mod gateway;
 pub mod request;
 pub mod response;
 pub mod routes;
+pub mod user_memory;
 
 pub use extractors::{ApiError, RequestContext};
 pub use gateway::{enforce_contract, ApiContract, GatewayError};
