@@ -1,0 +1,13 @@
+# Oris Memory Server — standalone workspace.
+# Extracted from the Oris monorepo as a self-contained product.
+[workspace]
+resolver = "2"
+members = [
+    "crates/oris-experience-repo",
+    "crates/oris-experience-contract",
+    "crates/oris-genestore",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
