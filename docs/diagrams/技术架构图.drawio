@@ -1,0 +1,462 @@
+<mxfile host="app.diagrams.net"><diagram id="tech-arch" name="技术架构图">
+    <mxGraphModel dx="2800" dy="1900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Oris Enterprise Context &amp; Memory Service — 技术架构图" style="text;html=1;fontSize=20;fontStyle=1;align=center;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="600" y="10" width="1200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="L1-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="2320" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="L1-label" value="Binary 入口层" style="text;html=1;fontSize=12;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="50" y="65" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="bin-rest" value="memory_server
+(REST V1 API)
+Axum + tower-http" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="80" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bin-mcp" value="mcp_server
+(JSON-RPC 2.0)
+stdin/stdout" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="80" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bin-outbox" value="outbox_worker
+(后台事件处理)
+SKIP LOCKED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="80" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="L2-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="40" y="160" width="2320" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="L2-label" value="API 网关层 (api/)" style="text;html=1;fontSize=12;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="50" y="165" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="api-routes" value="routes.rs
+v1_router (11 endpoints)
+AppState (8 services)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="185" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="api-extract" value="extractors.rs
+RequestContext
+DTOs + ApiError" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="450" y="185" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="api-mcp-tools" value="mcp_tools.rs
+McToolRegistry (13 tools)
+McpToolRequest/Response" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="680" y="185" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="api-user-mem" value="user_memory.rs
+User Memory API
+view/correct/export" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="940" y="185" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="api-ctx-pkg" value="context_package.rs
+Cross-Agent
+ContextPackage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="185" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="api-rate" value="rate_limit.rs
+Rate Limiting" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1360" y="185" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="api-identity" value="identity.rs
+ResolvedIdentity
+SSO/IAM 委托" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1540" y="185" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="L3-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="2320" height="380" as="geometry" />
+        </mxCell>
+        <mxCell id="L3-label" value="控制面核心层 (Enterprise Context &amp; Memory Service)" style="text;html=1;fontSize=14;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="50" y="305" width="500" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#4caf50;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="60" y="340" width="720" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-title" value="Write Pipeline (write_pipeline.rs) — 9 阶段" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="70" y="345" width="400" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-s1" value="1.Candidate
+Extraction" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4caf50;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="70" y="370" width="70" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-s2" value="2.Poison
+Guard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4caf50;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="150" y="370" width="70" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-s3" value="3.Importance
+/Dedup" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4caf50;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="230" y="370" width="70" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-s4" value="4.Entity
+Linking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4caf50;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="310" y="370" width="70" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-s5" value="5.Dedup/
+Conflict" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4caf50;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="390" y="370" width="70" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-s6" value="6.Retention
+Policy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4caf50;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="470" y="370" width="70" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-s7" value="7.Status
+Decision" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4caf50;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="550" y="370" width="70" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-s8" value="8.Canonical
+Store" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a5d6a7;strokeColor=#388e3c;fontSize=8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="630" y="370" width="70" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-s9" value="9.Outbox
+Event" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4caf50;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="710" y="370" width="60" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-poison" value="poison_guard.rs
+SafetyVerdict + Scan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#4caf50;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="70" y="430" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-entity" value="entity.rs
+EntityManager + Linker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#4caf50;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="240" y="430" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-conflict" value="conflict_resolver.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#4caf50;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="420" y="430" width="130" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wp-escalation" value="scope_escalation.rs
+Approval workflow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#4caf50;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="570" y="430" width="140" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ca-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1565c0;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="800" y="340" width="780" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="ca-title" value="Context Router + Assembler (context_router.rs + context_assembler.rs)" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="810" y="345" width="500" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="cr-router" value="ContextRouter
+6种Intent路由
+Chat/Personal/
+Business/CrossAgent/
+Decision/DeepResearch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1565c0;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="370" width="140" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="ca-assembler" value="ContextAssembler
+Token budget
+Latency budget
+Compression" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1565c0;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="370" width="130" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="ca-sources" value="5 Data Source Adapters
+HotContextAdapter (Redis)
+MemoryRepoAdapter (PG)
+SearchRepoAdapter (PG)
+CanonicalUserAdapter
+SharedTaskAdapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#90caf9;strokeColor=#1565c0;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="370" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="ca-rerank" value="rerank.rs
+Relevance×Authority
+×Freshness×Outcome" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1565c0;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="980" y="460" width="160" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="ca-sot" value="sot_verification.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1565c0;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="460" width="150" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#e65100;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="60" y="510" width="1520" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-label" value="业务逻辑模块" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="70" y="515" width="200" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-canonical" value="canonical_user.rs
+CanonicalUserManager" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="540" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-task" value="shared_task.rs
+SharedTaskManager
+handoff/lock" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="540" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-decision" value="decision.rs
+DecisionRecord" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="410" y="540" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-reflection" value="reflection.rs
+Episode→Experience" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="570" y="540" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-skill" value="skill_projection.rs
+→SOP/Skill" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="740" y="540" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-digital" value="digital_twin.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="890" y="540" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-migration" value="migration.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1030" y="540" width="100" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-embedding" value="embedding.rs
+async via outbox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="540" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-poc" value="poc_framework.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1290" y="540" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-replay" value="replay_hook.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="540" width="100" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-eval" value="eval.rs
+Recall@K" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="70" y="600" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-slo" value="slo_monitoring.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="190" y="600" width="110" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-cost" value="cost_tracking.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="320" y="600" width="110" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-resilience" value="resilience.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="450" y="600" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="bl-redteam" value="red_team_tests.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="570" y="600" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="L4-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#c2185b;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="340" width="740" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="L4-label" value="治理层 (governance/ + compliance.rs)" style="text;html=1;fontSize=12;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1610" y="345" width="400" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-audit" value="audit.rs
+AuditLogger
+全量访问审计" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8bbd0;strokeColor=#c2185b;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1620" y="375" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-version" value="version.rs
+VersionManager
+版本快照追溯" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8bbd0;strokeColor=#c2185b;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1790" y="375" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-forget" value="forget.rs
+ForgetManager
+soft/hard/cascade/GDPR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8bbd0;strokeColor=#c2185b;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1960" y="375" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-compliance" value="compliance.rs
+LegalHoldManager
+PiiMasker + Anonymizer
+§11.5 legal hold" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e91e63;strokeColor=#880e4f;fontColor=#ffffff;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1620" y="440" width="180" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-policy" value="policy.rs
+PolicyEngine" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8bbd0;strokeColor=#c2185b;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1820" y="440" width="130" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-acl" value="acl.rs
+RBAC+ABAC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8bbd0;strokeColor=#c2185b;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1970" y="440" width="130" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-retention" value="retention.rs
+差异化保留" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8bbd0;strokeColor=#c2185b;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1620" y="510" width="130" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-encryption" value="encryption.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8bbd0;strokeColor=#c2185b;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1770" y="510" width="110" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-scope" value="scope_escalation.rs
+ApprovalStore (PG)
+task→team→enterprise" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ce93d8;strokeColor=#7b1fa2;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1900" y="510" width="160" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-network" value="network_types.rs
+Gene sharing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8bbd0;strokeColor=#c2185b;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1620" y="575" width="130" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-keystore" value="keystore.rs
+KeyService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8bbd0;strokeColor=#c2185b;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1770" y="575" width="110" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="gov-ed25519" value="ed25519 verify" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8bbd0;strokeColor=#c2185b;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1900" y="575" width="120" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="L5-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede7f6;strokeColor=#5e35b2;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="40" y="700" width="1200" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="L5-label" value="可插拔记忆引擎 (engines/ + engine.rs)" style="text;html=1;fontSize=12;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="50" y="705" width="400" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="eng-trait" value="engine.rs
+MemoryEngine trait
+EngineRegistry
+CircuitBreaker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d1c4e9;strokeColor=#5e35b2;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="730" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="eng-mem0" value="mem0.rs (§3.6)
+Personal Memory
+semantic+keyword
+13 tests" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b39ddb;strokeColor=#5e35b2;fontColor=#ffffff;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="730" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="eng-cognee" value="cognee.rs (§3.7)
+Enterprise Graph
+graph+entity+ontology
+13 tests" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b39ddb;strokeColor=#5e35b2;fontColor=#ffffff;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="430" y="730" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="eng-graphiti" value="graphiti.rs (§3.8)
+Temporal Graph
+temporal+graph+keyword
+12 tests" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b39ddb;strokeColor=#5e35b2;fontColor=#ffffff;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="630" y="730" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="eng-adapters" value="adapters/
+openclaw.rs (§3.1)
+deerflow.rs (§3.2)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d1c4e9;strokeColor=#5e35b2;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="830" y="730" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="eng-client" value="client.rs
+ExperienceRepoClient" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d1c4e9;strokeColor=#5e35b2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="730" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="L6-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2f1;strokeColor=#00695c;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="40" y="850" width="2320" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="L6-label" value="数据面 (oris-memory-store)" style="text;html=1;fontSize=14;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="50" y="855" width="400" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2dfdb;strokeColor=#00695c;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="60" y="880" width="1100" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-label" value="PostgreSQL + pgvector (一期权威存储)" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="70" y="885" width="350" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-memory" value="memory_repo.rs
+CRUD + insert" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#004d40;strokeColor=#00695c;fontColor=#ffffff;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="910" width="140" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-search" value="search.rs
+hybrid_search
+pgvector HNSW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#004d40;strokeColor=#00695c;fontColor=#ffffff;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="230" y="910" width="130" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-schema" value="schema.rs
+DDL + RLS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#004d40;strokeColor=#00695c;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="380" y="910" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-rls" value="rls.rs
+RlsManager
+FORCE RLS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#004d40;strokeColor=#00695c;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="500" y="910" width="110" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-outbox" value="outbox.rs
+OutboxRepo
+SKIP LOCKED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#004d40;strokeColor=#00695c;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="630" y="910" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-task" value="task_repo.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#004d40;strokeColor=#00695c;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="770" y="910" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-user" value="user_repo.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#004d40;strokeColor=#00695c;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="890" y="910" width="90" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-partition" value="partition.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#004d40;strokeColor=#00695c;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="910" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-tables" value="11张表: memory_item · canonical_user_profile · shared_task_context · decision_record · entity · entity_relation · memory_access_audit · memory_version · outbox_event · approval_request · legal_hold" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#004d40;strokeColor=#00695c;fontColor=#ffffff;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="965" width="1080" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-traits" value="traits.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#004d40;strokeColor=#00695c;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1000" width="80" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-migrate" value="migrate.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#004d40;strokeColor=#00695c;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="170" y="1000" width="90" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="redis-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffccbc;strokeColor=#d84315;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="880" width="400" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="redis-label" value="Redis (热上下文 — 非权威)" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1210" y="885" width="250" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="redis-hot" value="hot_context.rs
+HotContextRepo
+User/Task/Perm" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bf360c;strokeColor=#d84315;fontColor=#ffffff;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1210" y="910" width="150" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="redis-cache" value="cache.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bf360c;strokeColor=#d84315;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1380" y="910" width="100" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="redis-session" value="session.rs
+分布式锁/幂等" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bf360c;strokeColor=#d84315;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="910" width="90" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="redis-ttl" value="TTL 5min
+可丢失/重建" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bf360c;strokeColor=#d84315;fontColor=#ffffff;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1210" y="965" width="120" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="contract-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8eaf6;strokeColor=#3949ab;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="1640" y="880" width="700" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="contract-label" value="oris-memory-contract (类型契约层)" style="text;html=1;fontSize=11;fontStyle=1;align=left;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1650" y="885" width="300" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="contract-types" value="memory_types.rs
+MemoryItem · MemoryCandidate
+CanonicalUserProfile · SharedTaskContext
+SearchParams · SearchResult
+EventType · OutboxEvent
+Scope · MemoryType · SourceType" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c5cae9;strokeColor=#3949ab;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1650" y="910" width="320" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="contract-server" value="server/
+handlers.rs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c5cae9;strokeColor=#3949ab;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1990" y="910" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="contract-mcp" value="mcp.rs
+JSON-RPC dispatch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c5cae9;strokeColor=#3949ab;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1990" y="965" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#333333;strokeWidth=2;endArrow=classic;" edge="1" parent="1" source="bin-rest" target="api-routes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#333333;strokeWidth=2;endArrow=classic;" edge="1" parent="1" source="bin-mcp" target="api-mcp-tools">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#333333;strokeWidth=2;endArrow=classic;" edge="1" parent="1" source="bin-outbox" target="pg-outbox">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#4caf50;strokeWidth=2;endArrow=classic;" edge="1" parent="1" source="api-routes" target="wp-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#1565c0;strokeWidth=2;endArrow=classic;" edge="1" parent="1" source="api-routes" target="ca-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#e65100;strokeWidth=2;endArrow=classic;" edge="1" parent="1" source="api-routes" target="bl-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#c2185b;strokeWidth=2;endArrow=classic;" edge="1" parent="1" source="api-routes" target="L4-bg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#5e35b2;strokeWidth=2;endArrow=classic;dashed=1;" edge="1" parent="1" source="ca-sources" target="L5-bg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#00695c;strokeWidth=3;endArrow=classic;" edge="1" parent="1" source="wp-s8" target="pg-memory">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#00695c;strokeWidth=2;endArrow=classic;" edge="1" parent="1" source="ca-sources" target="pg-search">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d84315;strokeWidth=2;endArrow=classic;dashed=1;" edge="1" parent="1" source="ca-sources" target="redis-hot">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#c2185b;strokeWidth=1;endArrow=classic;" edge="1" parent="1" source="gov-forget" target="gov-compliance">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="stats" value="99 Rust 源文件 | 53,606 行代码 | 1,084 测试 (0 失败) | 4 crates: contract + store + control-plane + server | 3 个可执行二进制" style="text;html=1;fontSize=10;fontStyle=2;align=center;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1065" width="2000" height="25" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram></mxfile>
