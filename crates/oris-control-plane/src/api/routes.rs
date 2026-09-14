@@ -173,7 +173,7 @@ impl MemoryService for PostgresMemoryService {
 
         // 2. Update the scope column.
         let result = sqlx::query(
-            r#"UPDATE memory_item SET scope = $2, updated_at = NOW()
+            r#"UPDATE memory_item SET scope = $2, updated_at = NOW(), version = version + 1
                WHERE memory_id = $1"#,
         )
         .bind(memory_id)

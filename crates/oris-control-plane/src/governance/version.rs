@@ -74,14 +74,14 @@ impl VersionManager {
         // 2. Serialise the full item as the version payload.
         let payload = serde_json::to_value(&item)?;
 
-        // 3. Insert the version snapshot.
+        // 3. Insert the version snapshot. Use COALESCE(MAX(version), 0) + 1
+        //    to avoid duplicate-key violations on repeated promotions.
         let row = sqlx::query(
             r#"INSERT INTO memory_version (version_id, memory_id, version, payload, changed_by, change_reason)
-               VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+               VALUES (gen_random_uuid(), $1, COALESCE((SELECT MAX(version) FROM memory_version WHERE memory_id = $1), 0) + 1, $2, $3, $4)
                RETURNING version_id, memory_id, version, payload, changed_by, change_reason, created_at"#,
         )
         .bind(memory_id)
-        .bind(item.version)
         .bind(&payload)
         .bind(changed_by)
         .bind(change_reason)

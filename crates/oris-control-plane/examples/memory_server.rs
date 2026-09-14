@@ -10,13 +10,16 @@
 
 use std::sync::Arc;
 
-use axum::{routing::get, Router};
+use axum::routing::get;
 use oris_control_plane::api::routes::{v1_router, AppState};
 use oris_control_plane::api::routes::{
     AssembleServiceImpl, PostgresMemoryService, PostgresSearchService,
 };
 use oris_control_plane::canonical_user::CanonicalUserManager;
-use oris_control_plane::context_assembler::ContextAssembler;
+use oris_control_plane::context_assembler::{
+    CanonicalUserAdapter, ContextAssembler, MemoryRepoAdapter, SearchRepoAdapter,
+    SharedTaskAdapter,
+};
 use oris_control_plane::context_router::ContextRouter;
 use oris_control_plane::governance::forget::ForgetManager;
 use oris_control_plane::governance::version::VersionManager;
@@ -24,7 +27,7 @@ use oris_control_plane::poison_guard::PoisonGuard;
 use oris_control_plane::rerank::{RerankConfig, RerankPipeline};
 use oris_control_plane::shared_task::SharedTaskManager;
 use oris_control_plane::write_pipeline::WritePipeline;
-use oris_memory_store::postgres::Pool;
+use oris_memory_store::postgres::{MemoryRepo, Pool, SearchRepo};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
@@ -55,9 +58,20 @@ async fn main() -> anyhow::Result<()> {
         pool.clone(),
         RerankPipeline::new(RerankConfig::default()),
     );
+    // Wire up ContextAssembler with PostgreSQL-backed data sources.
+    let memory_repo = MemoryRepo::new(pool.clone());
+    let search_repo = SearchRepo::new(pool.clone());
     let assembler = AssembleServiceImpl::new(
         ContextRouter::new(),
-        ContextAssembler::new(),
+        ContextAssembler::new()
+            .with_memory(Arc::new(MemoryRepoAdapter::from(memory_repo)))
+            .with_search(Arc::new(SearchRepoAdapter::from(search_repo)))
+            .with_canonical_user(Arc::new(CanonicalUserAdapter::from(
+                CanonicalUserManager::new(pool.clone()),
+            )))
+            .with_shared_task(Arc::new(SharedTaskAdapter::from(SharedTaskManager::new(
+                pool.clone(),
+            )))),
     );
     let canonical_user = CanonicalUserManager::new(pool.clone());
     let shared_task = SharedTaskManager::new(pool.clone());
