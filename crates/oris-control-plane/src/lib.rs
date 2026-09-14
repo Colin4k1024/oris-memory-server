@@ -22,6 +22,7 @@ pub mod digital_twin;
 pub mod embedding;
 pub mod encryption;
 pub mod engine;
+pub mod engines;
 pub mod entity;
 pub mod error;
 pub mod eval;
@@ -35,7 +36,7 @@ pub mod migration;
 pub mod network_types;
 pub mod oen;
 pub mod outbox_worker;
-// pub mod poc_framework; // temporarily disabled for scope_escalation test verification
+pub mod poc_framework;
 pub mod poison_guard;
 pub mod pre_filter;
 pub mod reflection;
@@ -52,6 +53,7 @@ pub mod write_pipeline;
 
 pub use client::ExperienceRepoClient;
 pub use control_plane::{ExperienceControlPlane, ExperienceSearchQuery, ExperienceSearchResult};
+pub use engines::{CogneeEngine, Mem0Engine};
 pub use engine::{
     CircuitBreaker, EngineError, EngineHealth, EngineQuery, EngineRegistry, EngineResult,
     EngineWriteItem, MemoryEngine, NoopEngine,
