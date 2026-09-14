@@ -200,6 +200,26 @@ CREATE TABLE IF NOT EXISTS outbox_event (
 
 CREATE INDEX IF NOT EXISTS idx_outbox_status_created
     ON outbox_event (status, created_at);
+
+-- ──────────────────── approval_request ──────────────────────
+CREATE TABLE IF NOT EXISTS approval_request (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    memory_id     UUID NOT NULL,
+    target_scope  TEXT NOT NULL,
+    requester     TEXT NOT NULL,
+    justification TEXT,
+    approver_role TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    decided_at    TIMESTAMPTZ,
+    decided_by    TEXT,
+    expires_at    TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_approval_memory_scope
+    ON approval_request (memory_id, target_scope, status);
+CREATE INDEX IF NOT EXISTS idx_approval_status
+    ON approval_request (status, expires_at);
 "#;
 
 /// RLS policy DDL.
@@ -278,6 +298,7 @@ mod tests {
         assert!(SCHEMA_DDL.contains("canonical_user_profile"));
         assert!(SCHEMA_DDL.contains("shared_task_context"));
         assert!(SCHEMA_DDL.contains("outbox_event"));
+        assert!(SCHEMA_DDL.contains("approval_request"));
         assert!(SCHEMA_DDL.contains("vector(1536)"));
         assert!(SCHEMA_DDL.contains("hnsw"));
     }

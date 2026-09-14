@@ -1,5 +1,7 @@
 //! Governed storage, retrieval, and lifecycle transitions for experience assets.
 
+#![allow(deprecated)]
+
 use crate::skill_projection::{render_portable_skill, PortableSkillProjection};
 use chrono::Utc;
 use oris_memory_contract::{
@@ -76,13 +78,30 @@ pub struct UseSession {
     pub started_at: chrono::DateTime<Utc>,
 }
 
+
 /// SQLite-backed control plane. Genes are immutable per `(id, version)`; outcome
 /// data is stored separately and folded into a new governed projection.
+///
+/// # Deprecation Notice
+///
+/// This SQLite-backed control plane is deprecated (P2-7).  Production
+/// deployments should use [`crate::memory_control_plane::MemoryControlPlane`]
+/// (PostgreSQL + pgvector) instead.  The legacy implementation is retained
+/// only for the MCP server binary and existing tests that have not yet been
+/// migrated.  Do not build new features on this module.
+#[deprecated(
+    since = "0.4.0",
+    note = "Use MemoryControlPlane (PostgreSQL) instead — see crate::memory_control_plane"
+)]
 pub struct ExperienceControlPlane {
     conn: Connection,
 }
 
 impl ExperienceControlPlane {
+    #[deprecated(
+        since = "0.4.0",
+        note = "Use MemoryControlPlane (PostgreSQL) instead"
+    )]
     pub fn open(path: impl AsRef<Path>) -> Result<Self, ControlPlaneError> {
         let conn = Connection::open(path)?;
         let store = Self { conn };
@@ -90,6 +109,10 @@ impl ExperienceControlPlane {
         Ok(store)
     }
 
+    #[deprecated(
+        since = "0.4.0",
+        note = "Use MemoryControlPlane (PostgreSQL) instead"
+    )]
     pub fn memory() -> Result<Self, ControlPlaneError> {
         let store = Self {
             conn: Connection::open_in_memory()?,

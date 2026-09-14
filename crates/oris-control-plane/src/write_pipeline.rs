@@ -9,7 +9,7 @@
 //!   ↓
 //! Importance / Novelty / Confidence Scoring
 //!   ↓
-//! Ontology Entity Linking (stub — returns empty)
+//! Ontology Entity Linking (EntityLinker — optional, default: EntityManagerLinker)
 //!   ↓
 //! Dedup / Conflict / Effective-Time Check
 //!   ↓
@@ -32,6 +32,7 @@
 //! `OutboxRepo` for production use.
 
 use std::sync::Arc;
+use std::collections::HashSet;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -51,6 +52,7 @@ use oris_memory_store::postgres::Pool;
 
 use crate::governance::PolicyEngine;
 use crate::poison_guard::{PoisonGuard, SafetyVerdict, SourceType as PoisonSourceType};
+use crate::entity::EntityManager;
 
 // ──────────────────────────── Constants ────────────────────────
 
@@ -146,6 +148,65 @@ pub trait OutboxEnqueuer: Send + Sync {
 }
 
 // ──────────────────────────── ProductionStore ────────────────────
+// ──────────────────────────── EntityLinker ──────────────────────
+
+/// Abstraction over ontology entity linking (§9.1 Stage 4).
+///
+/// The default production implementation wraps [`EntityManager`] and
+/// searches for known entities whose names appear in the candidate content.
+/// Tests can supply a no-op or mock implementation.
+#[async_trait]
+pub trait EntityLinker: Send + Sync {
+    /// Search for entities mentioned in `content` and return their
+    /// references as JSON values (entity_id, entity_type, name).
+    async fn link(&self, content: &str, tenant_id: &str) -> Vec<Value>;
+}
+
+/// Production [`EntityLinker`] backed by [`EntityManager`].
+pub struct EntityManagerLinker {
+    manager: EntityManager,
+}
+
+impl EntityManagerLinker {
+    pub fn new(manager: EntityManager) -> Self {
+        Self { manager }
+    }
+}
+
+#[async_trait]
+impl EntityLinker for EntityManagerLinker {
+    async fn link(&self, content: &str, tenant_id: &str) -> Vec<Value> {
+        let tokens: Vec<&str> = content
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|t| t.len() > 2)
+            .take(20)
+            .collect();
+
+        let mut linked: Vec<Value> = Vec::new();
+        let mut seen: HashSet<uuid::Uuid> = HashSet::new();
+
+        for token in tokens {
+            if let Ok(entities) = self.manager.search_entities(tenant_id, token).await {
+                for entity in entities {
+                    if seen.insert(entity.entity_id) {
+                        linked.push(json!({
+                            "entity_id": entity.entity_id,
+                            "entity_type": entity.entity_type,
+                            "name": entity.name,
+                        }));
+                    }
+                    if linked.len() >= 10 {
+                        return linked;
+                    }
+                }
+            }
+        }
+
+        linked
+    }
+}
+
+// ──────────────────────────── ProductionStore ────────────────────
 
 /// Production adapter that wraps `MemoryRepo` + `OutboxRepo` behind the
 /// pipeline traits.
@@ -193,6 +254,15 @@ impl MemoryStore for ProductionStore {
         // on Active.
         if status != MemoryStatus::Candidate {
             self.memory_repo.update_status(memory_id, status).await?;
+
+            // Set valid_from when a memory becomes Active (§10.1 P1-6).
+            sqlx::query(
+                r#"UPDATE memory_item SET valid_from = NOW()
+                   WHERE memory_id = $1 AND valid_from IS NULL"#,
+            )
+            .bind(memory_id)
+            .execute(&*self.pool)
+            .await?;
         }
 
         Ok(memory_id)
@@ -302,17 +372,20 @@ pub struct WritePipeline {
     enqueuer: Arc<dyn OutboxEnqueuer>,
     poison_guard: PoisonGuard,
     policy_engine: Option<PolicyEngine>,
+    entity_linker: Option<Arc<dyn EntityLinker>>,
 }
 
 impl WritePipeline {
     /// Create a production pipeline backed by real `MemoryRepo` + `OutboxRepo`.
     pub fn from_pool(pool: Arc<Pool>, poison_guard: PoisonGuard) -> Self {
+        let entity_linker = EntityManagerLinker::new(EntityManager::new((*pool).clone()));
         let store = Arc::new(ProductionStore::new(pool));
         Self {
             store: store.clone(),
             enqueuer: store,
             poison_guard,
             policy_engine: None,
+            entity_linker: Some(Arc::new(entity_linker)),
         }
     }
 
@@ -322,12 +395,14 @@ impl WritePipeline {
         poison_guard: PoisonGuard,
         policy_engine: PolicyEngine,
     ) -> Self {
+        let entity_linker = EntityManagerLinker::new(EntityManager::new((*pool).clone()));
         let store = Arc::new(ProductionStore::new(pool));
         Self {
             store: store.clone(),
             enqueuer: store,
             poison_guard,
             policy_engine: Some(policy_engine),
+            entity_linker: Some(Arc::new(entity_linker)),
         }
     }
 
@@ -342,6 +417,7 @@ impl WritePipeline {
             enqueuer,
             poison_guard,
             policy_engine: None,
+            entity_linker: None,
         }
     }
 
@@ -351,11 +427,17 @@ impl WritePipeline {
         self
     }
 
+    /// Attach an entity linker to an existing pipeline.
+    pub fn with_entity_linker(mut self, linker: Arc<dyn EntityLinker>) -> Self {
+        self.entity_linker = Some(linker);
+        self
+    }
+
     // ──────────────────────── Main entry point ────────────────────────
 
     /// Run a [`CandidateSubmission`] through the full 9-stage pipeline.
     ///
-    /// Stages: extraction → poison scan → scoring → entity linking (stub)
+    /// Stages: extraction → poison scan → scoring → entity linking
     /// → dedup → retention → store → canonical store → outbox.
     #[instrument(skip(self, submission), fields(tenant = %submission.tenant_id))]
     pub async fn submit_candidate(
@@ -363,7 +445,7 @@ impl WritePipeline {
         submission: &CandidateSubmission,
     ) -> Result<WriteResult, WritePipelineError> {
         // ── Stage 1: Candidate Extraction ────────────────────────────
-        let candidate = self.extract_candidate(submission);
+        let mut candidate = self.extract_candidate(submission);
         let poison_source = to_poison_source_type(submission.source_type);
 
         // ── Stage 2: Sensitive Data & Injection Scan ────────────────
@@ -395,10 +477,20 @@ impl WritePipeline {
         );
         let importance = compute_importance(submission.source_type, is_duplicate);
 
-        // ── Stage 4: Ontology Entity Linking (stub) ─────────────────
-        // TODO: integrate entity-linking service; returns empty for now.
-        let linked_entities: Vec<Value> = Vec::new();
-        let _ = &linked_entities; // used when we enrich structured_payload
+        // ── Stage 4: Ontology Entity Linking ────────────────────────
+        let linked_entities: Vec<Value> = if let Some(linker) = &self.entity_linker {
+            linker.link(&submission.content, &submission.tenant_id).await
+        } else {
+            Vec::new()
+        };
+        // Pack linked entities into structured_payload for downstream use.
+        if !linked_entities.is_empty() {
+            let mut base = candidate.structured_payload.clone().unwrap_or(json!({}));
+            if let Some(obj) = base.as_object_mut() {
+                obj.insert("linked_entities".into(), json!(linked_entities));
+            }
+            candidate.structured_payload = Some(base);
+        }
 
         // ── Stage 5: Dedup / Conflict / Effective-Time Check ────────
         if is_duplicate {

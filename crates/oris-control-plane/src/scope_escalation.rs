@@ -26,6 +26,7 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
@@ -34,6 +35,7 @@ use oris_memory_store::postgres::{MemoryRepo, MemoryRepoError, Pool};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
+use sqlx::Row;
 
 // ─────────────────────── Scope ladder helpers ──────────────────
 
@@ -125,6 +127,15 @@ pub enum EscalationError {
 
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+
+    #[error("invalid scope string: {0}")]
+    InvalidScope(String),
+
+    #[error("invalid approver role string: {0}")]
+    InvalidApproverRole(String),
+
+    #[error("invalid approval status string: {0}")]
+    InvalidApprovalStatus(String),
 }
 
 // ───────────────────────── Approver role ──────────────────────
@@ -156,6 +167,17 @@ impl ApproverRole {
     /// Whether this role requires an external approval step.
     pub fn requires_approval(&self) -> bool {
         !matches!(self, Self::SelfService)
+    }
+
+    /// Parse an approver role from its `as_str` representation.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "self_service" => Some(Self::SelfService),
+            "team_lead" => Some(Self::TeamLead),
+            "factory_manager" => Some(Self::FactoryManager),
+            "enterprise_admin" => Some(Self::EnterpriseAdmin),
+            _ => None,
+        }
     }
 }
 
@@ -330,6 +352,28 @@ pub enum ApprovalStatus {
     Approved,
     Rejected,
     Expired,
+}
+
+impl ApprovalStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Approved => "approved",
+            Self::Rejected => "rejected",
+            Self::Expired => "expired",
+        }
+    }
+
+    /// Parse an approval status from its `as_str` representation.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "pending" => Some(Self::Pending),
+            "approved" => Some(Self::Approved),
+            "rejected" => Some(Self::Rejected),
+            "expired" => Some(Self::Expired),
+            _ => None,
+        }
+    }
 }
 
 /// A single approval request for a cross-scope promotion.
@@ -589,31 +633,317 @@ impl MemoryScopeStore for PgMemoryScopeStore {
     }
 }
 
+// ─────────────────────── ApprovalStore trait ──────────────────
+
+/// Persists approval requests for scope promotions (§4.2, P1-5).
+///
+/// The default production implementation [`PgApprovalStore`] persists to
+/// the `approval_request` PostgreSQL table.  Tests use
+/// [`InMemoryApprovalStore`] so [`ScopeEscalationManager::promote`] can be
+/// exercised without a database.
+#[async_trait]
+pub trait ApprovalStore: Send + Sync {
+    /// Insert a new approval request.
+    async fn insert(&self, request: &ApprovalRequest) -> Result<(), EscalationError>;
+
+    /// Fetch a request by ID.
+    async fn get(&self, id: Uuid) -> Result<Option<ApprovalRequest>, EscalationError>;
+
+    /// Find an *approved* request matching the memory + target scope.
+    async fn find_approved(
+        &self,
+        memory_id: Uuid,
+        target_scope: Scope,
+    ) -> Result<Option<ApprovalRequest>, EscalationError>;
+
+    /// Update the status of a request (approve / reject / expire).
+    async fn update_status(
+        &self,
+        id: Uuid,
+        status: ApprovalStatus,
+        decided_by: &str,
+    ) -> Result<ApprovalRequest, EscalationError>;
+
+    /// Expire all pending requests whose TTL has elapsed.  Returns the
+    /// newly expired requests.
+    async fn expire_pending(&self) -> Result<Vec<ApprovalRequest>, EscalationError>;
+}
+
+/// PostgreSQL-backed [`ApprovalStore`].
+pub struct PgApprovalStore {
+    pool: Pool,
+}
+
+impl PgApprovalStore {
+    pub fn new(pool: Pool) -> Self {
+        Self { pool }
+    }
+
+    fn row_to_request(row: &sqlx::postgres::PgRow) -> Result<ApprovalRequest, EscalationError> {
+        let status_str: String = row
+            .try_get("status")
+            .map_err(|e| EscalationError::Database(e))?;
+        let scope_str: String = row
+            .try_get("target_scope")
+            .map_err(|e| EscalationError::Database(e))?;
+        let role_str: String = row
+            .try_get("approver_role")
+            .map_err(|e| EscalationError::Database(e))?;
+
+        let target_scope = Scope::from_str(&scope_str)
+            .ok_or_else(|| EscalationError::InvalidScope(scope_str.clone()))?;
+        let approver_role = ApproverRole::from_str(&role_str)
+            .ok_or_else(|| EscalationError::InvalidApproverRole(role_str.clone()))?;
+        let status = ApprovalStatus::from_str(&status_str)
+            .ok_or_else(|| EscalationError::InvalidApprovalStatus(status_str.clone()))?;
+
+        Ok(ApprovalRequest {
+            id: row.try_get("id").map_err(|e| EscalationError::Database(e))?,
+            memory_id: row
+                .try_get("memory_id")
+                .map_err(|e| EscalationError::Database(e))?,
+            target_scope,
+            requester: row
+                .try_get("requester")
+                .map_err(|e| EscalationError::Database(e))?,
+            justification: row
+                .try_get("justification")
+                .unwrap_or_default(),
+            approver_role,
+            status,
+            created_at: row
+                .try_get("created_at")
+                .map_err(|e| EscalationError::Database(e))?,
+            decided_at: row
+                .try_get("decided_at")
+                .ok(),
+            decided_by: row.try_get("decided_by").ok(),
+            expires_at: row
+                .try_get("expires_at")
+                .map_err(|e| EscalationError::Database(e))?,
+        })
+    }
+}
+
+#[async_trait]
+impl ApprovalStore for PgApprovalStore {
+    async fn insert(&self, request: &ApprovalRequest) -> Result<(), EscalationError> {
+        sqlx::query(
+            r#"INSERT INTO approval_request
+                  (id, memory_id, target_scope, requester, justification,
+                   approver_role, status, created_at, decided_at, decided_by,
+                   expires_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"#,
+        )
+        .bind(request.id)
+        .bind(request.memory_id)
+        .bind(request.target_scope.as_str())
+        .bind(&request.requester)
+        .bind(&request.justification)
+        .bind(request.approver_role.as_str())
+        .bind(request.status.as_str())
+        .bind(request.created_at)
+        .bind(request.decided_at)
+        .bind(&request.decided_by)
+        .bind(request.expires_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn get(&self, id: Uuid) -> Result<Option<ApprovalRequest>, EscalationError> {
+        let row = sqlx::query(r#"SELECT * FROM approval_request WHERE id = $1"#)
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        row.map(|r| Self::row_to_request(&r)).transpose()
+    }
+
+    async fn find_approved(
+        &self,
+        memory_id: Uuid,
+        target_scope: Scope,
+    ) -> Result<Option<ApprovalRequest>, EscalationError> {
+        let row = sqlx::query(
+            r#"SELECT * FROM approval_request
+                WHERE memory_id = $1 AND target_scope = $2 AND status = 'approved'
+                ORDER BY decided_at DESC LIMIT 1"#,
+        )
+        .bind(memory_id)
+        .bind(target_scope.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(|r| Self::row_to_request(&r)).transpose()
+    }
+
+    async fn update_status(
+        &self,
+        id: Uuid,
+        status: ApprovalStatus,
+        decided_by: &str,
+    ) -> Result<ApprovalRequest, EscalationError> {
+        let row = sqlx::query(
+            r#"UPDATE approval_request
+                  SET status = $2, decided_at = NOW(), decided_by = $3
+                WHERE id = $1
+            RETURNING *"#,
+        )
+        .bind(id)
+        .bind(status.as_str())
+        .bind(decided_by)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map(|r| Self::row_to_request(&r))
+            .transpose()?
+            .ok_or(EscalationError::ApprovalNotFound(id))
+    }
+
+    async fn expire_pending(&self) -> Result<Vec<ApprovalRequest>, EscalationError> {
+        let rows = sqlx::query(
+            r#"UPDATE approval_request
+                  SET status = 'expired'
+                WHERE status = 'pending' AND expires_at <= NOW()
+            RETURNING *"#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.iter().map(Self::row_to_request).collect()
+    }
+}
+
+/// In-memory [`ApprovalStore`] for testing.
+pub struct InMemoryApprovalStore {
+    requests: tokio::sync::Mutex<HashMap<Uuid, ApprovalRequest>>,
+}
+
+impl Default for InMemoryApprovalStore {
+    fn default() -> Self {
+        Self {
+            requests: tokio::sync::Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+impl InMemoryApprovalStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+#[async_trait]
+impl ApprovalStore for InMemoryApprovalStore {
+    async fn insert(&self, request: &ApprovalRequest) -> Result<(), EscalationError> {
+        self.requests
+            .lock()
+            .await
+            .insert(request.id, request.clone());
+        Ok(())
+    }
+
+    async fn get(&self, id: Uuid) -> Result<Option<ApprovalRequest>, EscalationError> {
+        Ok(self.requests.lock().await.get(&id).cloned())
+    }
+
+    async fn find_approved(
+        &self,
+        memory_id: Uuid,
+        target_scope: Scope,
+    ) -> Result<Option<ApprovalRequest>, EscalationError> {
+        Ok(self
+            .requests
+            .lock()
+            .await
+            .values()
+            .find(|r| {
+                r.memory_id == memory_id
+                    && r.target_scope == target_scope
+                    && r.status == ApprovalStatus::Approved
+            })
+            .cloned())
+    }
+
+    async fn update_status(
+        &self,
+        id: Uuid,
+        status: ApprovalStatus,
+        decided_by: &str,
+    ) -> Result<ApprovalRequest, EscalationError> {
+        let mut requests = self.requests.lock().await;
+        let request = requests
+            .get_mut(&id)
+            .ok_or(EscalationError::ApprovalNotFound(id))?;
+        if request.status == ApprovalStatus::Expired {
+            return Err(EscalationError::ApprovalExpired(id));
+        }
+        if request.status != ApprovalStatus::Pending {
+            return Err(EscalationError::ApprovalAlreadyDecided {
+                id,
+                status: request.status,
+            });
+        }
+        request.status = status;
+        request.decided_at = Some(Utc::now());
+        request.decided_by = Some(decided_by.to_string());
+        Ok(request.clone())
+    }
+
+    async fn expire_pending(&self) -> Result<Vec<ApprovalRequest>, EscalationError> {
+        let now = Utc::now();
+        let mut requests = self.requests.lock().await;
+        let mut expired = Vec::new();
+        for request in requests.values_mut() {
+            if request.status == ApprovalStatus::Pending && request.expires_at <= now {
+                request.status = ApprovalStatus::Expired;
+                expired.push(request.clone());
+            }
+        }
+        Ok(expired)
+    }
+}
+
 // ─────────────────────── Escalation manager ────────────────────
 
 /// Orchestrates scope promotions: fetches the memory, validates the request
 /// against [`EscalationPolicy`], routes cross-scope promotions through
-/// [`ApprovalWorkflow`], and persists the new scope via [`MemoryScopeStore`].
+/// [`ApprovalStore`], and persists the new scope via [`MemoryScopeStore`].
 pub struct ScopeEscalationManager<S: MemoryScopeStore = PgMemoryScopeStore> {
     store: S,
     policy: EscalationPolicy,
-    workflow: ApprovalWorkflow,
+    approval_store: Arc<dyn ApprovalStore>,
 }
 
 impl ScopeEscalationManager<PgMemoryScopeStore> {
     /// Create a manager backed by a PostgreSQL pool with default policy.
     pub fn new(pool: Pool) -> Self {
-        Self::with_store(PgMemoryScopeStore::new(pool), EscalationPolicy::default())
+        let scope_store = PgMemoryScopeStore::new(pool.clone());
+        let approval_store: Arc<dyn ApprovalStore> = Arc::new(PgApprovalStore::new(pool));
+        Self::with_stores(scope_store, approval_store, EscalationPolicy::default())
     }
 }
 
 impl<S: MemoryScopeStore> ScopeEscalationManager<S> {
     /// Create a manager with a custom store and policy.
+    /// Uses an in-memory approval store (suitable for tests).
     pub fn with_store(store: S, policy: EscalationPolicy) -> Self {
         Self {
             store,
             policy,
-            workflow: ApprovalWorkflow::default(),
+            approval_store: Arc::new(InMemoryApprovalStore::new()),
+        }
+    }
+
+    /// Create a manager with explicit scope and approval stores.
+    pub fn with_stores(
+        store: S,
+        approval_store: Arc<dyn ApprovalStore>,
+        policy: EscalationPolicy,
+    ) -> Self {
+        Self {
+            store,
+            policy,
+            approval_store,
         }
     }
 
@@ -627,8 +957,9 @@ impl<S: MemoryScopeStore> ScopeEscalationManager<S> {
         &self.policy
     }
 
-    pub fn workflow(&self) -> &ApprovalWorkflow {
-        &self.workflow
+    /// Access the underlying approval store.
+    pub fn approval_store(&self) -> &Arc<dyn ApprovalStore> {
+        &self.approval_store
     }
 
     /// Promote a memory to a wider scope.
@@ -678,8 +1009,9 @@ impl<S: MemoryScopeStore> ScopeEscalationManager<S> {
 
         // Cross-scope: apply immediately if an approval is already on record.
         if let Some(approval) = self
-            .workflow
+            .approval_store
             .find_approved(request.memory_id, request.target_scope)
+            .await?
         {
             self.store
                 .update_scope(request.memory_id, request.target_scope)
@@ -694,13 +1026,21 @@ impl<S: MemoryScopeStore> ScopeEscalationManager<S> {
         }
 
         // Otherwise create a pending approval request and wait.
-        let approval = self.workflow.submit(
-            request.memory_id,
-            request.target_scope,
-            &request.requester,
-            &request.justification,
-            outcome.approver_role,
-        );
+        let now = Utc::now();
+        let approval = ApprovalRequest {
+            id: Uuid::new_v4(),
+            memory_id: request.memory_id,
+            target_scope: request.target_scope,
+            requester: request.requester.clone(),
+            justification: request.justification.clone(),
+            approver_role: outcome.approver_role,
+            status: ApprovalStatus::Pending,
+            created_at: now,
+            decided_at: None,
+            decided_by: None,
+            expires_at: now + Duration::hours(24),
+        };
+        self.approval_store.insert(&approval).await?;
         Ok(ScopePromotionResult {
             success: false,
             new_scope: None,
@@ -715,21 +1055,30 @@ impl<S: MemoryScopeStore> ScopeEscalationManager<S> {
     }
 
     /// Approve a pending promotion request.
-    pub fn approve_promotion(
+    pub async fn approve_promotion(
         &self,
         approval_id: Uuid,
         approver: &str,
     ) -> Result<ApprovalRequest, EscalationError> {
-        self.workflow.approve(approval_id, approver)
+        self.approval_store
+            .update_status(approval_id, ApprovalStatus::Approved, approver)
+            .await
     }
 
     /// Reject a pending promotion request.
-    pub fn reject_promotion(
+    pub async fn reject_promotion(
         &self,
         approval_id: Uuid,
         approver: &str,
     ) -> Result<ApprovalRequest, EscalationError> {
-        self.workflow.reject(approval_id, approver)
+        self.approval_store
+            .update_status(approval_id, ApprovalStatus::Rejected, approver)
+            .await
+    }
+
+    /// Expire all pending approval requests whose TTL has elapsed.
+    pub async fn expire_pending_promotions(&self) -> Result<Vec<ApprovalRequest>, EscalationError> {
+        self.approval_store.expire_pending().await
     }
 }
 
@@ -1101,7 +1450,7 @@ mod tests {
         let approval_id = result.approval_id.unwrap();
 
         // Approve, then promote again — scope is applied.
-        let approved = mgr.approve_promotion(approval_id, "lead1").unwrap();
+        let approved = mgr.approve_promotion(approval_id, "lead1").await.unwrap();
         assert_eq!(approved.status, ApprovalStatus::Approved);
         let result2 = mgr.promote(&req).await.unwrap();
         assert!(result2.success);
@@ -1123,7 +1472,7 @@ mod tests {
 
         let result = mgr.promote(&req).await.unwrap();
         let approval_id = result.approval_id.unwrap();
-        mgr.reject_promotion(approval_id, "lead1").unwrap();
+        mgr.reject_promotion(approval_id, "lead1").await.unwrap();
 
         // Retrying creates a fresh pending request (rejected one is not "approved").
         let result2 = mgr.promote(&req).await.unwrap();

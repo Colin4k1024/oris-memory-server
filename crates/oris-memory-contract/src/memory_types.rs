@@ -58,6 +58,20 @@ impl Scope {
             Self::Enterprise => "enterprise",
         }
     }
+
+    /// Parse a scope from its `as_str` representation.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "personal" => Some(Self::Personal),
+            "agent" => Some(Self::Agent),
+            "task" => Some(Self::Task),
+            "team" => Some(Self::Team),
+            "process" => Some(Self::Process),
+            "factory" => Some(Self::Factory),
+            "enterprise" => Some(Self::Enterprise),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -389,4 +403,26 @@ pub enum MatchType {
     Keyword,
     Vector,
     Hybrid,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scope_from_str_round_trip() {
+        for scope in [
+            Scope::Personal,
+            Scope::Agent,
+            Scope::Task,
+            Scope::Team,
+            Scope::Process,
+            Scope::Factory,
+            Scope::Enterprise,
+        ] {
+            let s = scope.as_str();
+            assert_eq!(Scope::from_str(s), Some(scope));
+        }
+        assert_eq!(Scope::from_str("unknown"), None);
+    }
 }
