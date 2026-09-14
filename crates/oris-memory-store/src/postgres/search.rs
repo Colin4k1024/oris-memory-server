@@ -83,15 +83,24 @@ impl SearchRepo {
 
         // Vector search path (if embedding provided)
         if let Some(ref embedding) = params.embedding {
+            let p_kw = bind_idx;
+            let p_kw_w = bind_idx + 1;
+            let p_vec = bind_idx + 2;
+            let p_vec_w = bind_idx + 3;
+            let p_auth_w = bind_idx + 4;
+            let p_fresh_w = bind_idx + 5;
+            let p_limit = bind_idx + 6;
+            let p_offset = bind_idx + 7;
+
             // Combined keyword + vector search with weighted scoring
             let query_str = format!(
                 r#"SELECT *,
-                    (CASE WHEN content ILIKE $kw THEN $kw_weight ELSE 0 END
-                     + (1.0 - (embedding <=> $vec)) * $vec_weight
-                     + authority_rank * $auth_weight
-                     + (1.0 / (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0 + 1.0)) * $fresh_weight
+                    (CASE WHEN content ILIKE ${p_kw} THEN ${p_kw_w} ELSE 0 END
+                     + (1.0 - (embedding <=> ${p_vec}::vector)) * ${p_vec_w}
+                     + authority_rank * ${p_auth_w}
+                     + (1.0 / (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0 + 1.0)) * ${p_fresh_w}
                     ) AS score,
-                    (CASE WHEN content ILIKE $kw THEN TRUE ELSE FALSE END) AS matched_keyword,
+                    (CASE WHEN content ILIKE ${p_kw} THEN TRUE ELSE FALSE END) AS matched_keyword,
                     TRUE AS matched_vector
                    FROM memory_item
                    CROSS JOIN LATERAL (
@@ -105,7 +114,7 @@ impl SearchRepo {
                    ) AS ar
                    WHERE {where_clause}
                    ORDER BY score DESC
-                   LIMIT $limit OFFSET $offset"#,
+                   LIMIT ${p_limit} OFFSET ${p_offset}"#,
             );
 
             let mut q = sqlx::query(&query_str).bind(&params.tenant_id);
@@ -150,12 +159,19 @@ impl SearchRepo {
                 .collect();
             Ok(results)
         } else if has_keyword {
+            let p_kw = bind_idx;
+            let p_kw_w = bind_idx + 1;
+            let p_auth_w = bind_idx + 2;
+            let p_fresh_w = bind_idx + 3;
+            let p_limit = bind_idx + 4;
+            let p_offset = bind_idx + 5;
+
             // Keyword-only search
             let query_str = format!(
                 r#"SELECT *,
-                    (CASE WHEN content ILIKE $kw THEN $kw_weight ELSE 0 END
-                     + authority_rank * $auth_weight
-                     + (1.0 / (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0 + 1.0)) * $fresh_weight
+                    (CASE WHEN content ILIKE ${p_kw} THEN ${p_kw_w} ELSE 0 END
+                     + authority_rank * ${p_auth_w}
+                     + (1.0 / (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0 + 1.0)) * ${p_fresh_w}
                     ) AS score
                    FROM memory_item
                    CROSS JOIN LATERAL (
@@ -169,7 +185,7 @@ impl SearchRepo {
                    ) AS ar
                    WHERE {where_clause}
                    ORDER BY score DESC
-                   LIMIT $limit OFFSET $offset"#,
+                   LIMIT ${p_limit} OFFSET ${p_offset}"#,
             );
 
             let mut q = sqlx::query(&query_str).bind(&params.tenant_id);
@@ -200,13 +216,15 @@ impl SearchRepo {
                 .collect())
         } else {
             // Structured-only search
+            let p_limit = bind_idx;
+            let p_offset = bind_idx + 1;
             let query_str = format!(
                 r#"SELECT *,
                     confidence * 0.5 + importance * 0.5 AS score
                    FROM memory_item
                    WHERE {where_clause}
                    ORDER BY score DESC
-                   LIMIT $limit OFFSET $offset"#,
+                   LIMIT ${p_limit} OFFSET ${p_offset}"#,
             );
 
             let mut q = sqlx::query(&query_str).bind(&params.tenant_id);
