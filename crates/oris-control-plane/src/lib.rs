@@ -53,7 +53,7 @@ pub mod write_pipeline;
 
 pub use client::ExperienceRepoClient;
 pub use control_plane::{ExperienceControlPlane, ExperienceSearchQuery, ExperienceSearchResult};
-pub use engines::{CogneeEngine, Mem0Engine};
+pub use engines::{CogneeEngine, GraphitiEngine, Mem0Engine};
 pub use scope_escalation::{ApprovalStore, InMemoryApprovalStore, PgApprovalStore};
 pub use write_pipeline::{EntityLinker, EntityManagerLinker};
 pub use engine::{

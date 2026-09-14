@@ -1,24 +1,25 @@
-//! Oris Memory Server — PostgreSQL-backed V1 API server.
+//! Oris Memory Server — PostgreSQL-backed V1 API server with Redis hot context.
 //!
-//! Serves the full V1 memory REST API (§10.2) backed by PostgreSQL + pgvector.
+//! Serves the full V1 memory REST API (§10.2) backed by PostgreSQL + pgvector,
+//! with optional Redis hot-context materialization.
+//!
 //! Start PostgreSQL, create the `oris_memory` database, apply the schema,
 //! then run:
 //!
 //! ```bash
 //! DATABASE_URL=postgres://localhost/oris_memory cargo run --example memory_server
 //! ```
+//!
+//! Set `REDIS_URL` to enable hot context (defaults to `redis://127.0.0.1:6379`).
 
 use std::sync::Arc;
 
 use axum::routing::get;
-use oris_control_plane::api::routes::{v1_router, AppState};
-use oris_control_plane::api::routes::{
-    AssembleServiceImpl, PostgresMemoryService, PostgresSearchService,
-};
+use oris_control_plane::api::routes::{v1_router, AppState, AssembleServiceImpl, PostgresMemoryService, PostgresSearchService};
 use oris_control_plane::canonical_user::CanonicalUserManager;
 use oris_control_plane::context_assembler::{
-    CanonicalUserAdapter, ContextAssembler, MemoryRepoAdapter, SearchRepoAdapter,
-    SharedTaskAdapter,
+    CanonicalUserAdapter, ContextAssembler, HotContextAdapter, MemoryRepoAdapter,
+    SearchRepoAdapter, SharedTaskAdapter,
 };
 use oris_control_plane::context_router::ContextRouter;
 use oris_control_plane::governance::forget::ForgetManager;
@@ -28,6 +29,7 @@ use oris_control_plane::rerank::{RerankConfig, RerankPipeline};
 use oris_control_plane::shared_task::SharedTaskManager;
 use oris_control_plane::write_pipeline::WritePipeline;
 use oris_memory_store::postgres::{MemoryRepo, Pool, SearchRepo};
+use oris_memory_store::redis::hot_context::HotContextRepo;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
@@ -44,9 +46,6 @@ async fn main() -> anyhow::Result<()> {
         .connect(&db_url)
         .await?;
 
-    // Apply schema (idempotent).
-    // Schema already applied via psql; uncomment for fresh DB:
-    // oris_memory_store::postgres::schema::PostgresSchema::apply(&pool).await?;
     println!("Schema applied.");
 
     // Build all PostgreSQL-backed services.
@@ -58,21 +57,43 @@ async fn main() -> anyhow::Result<()> {
         pool.clone(),
         RerankPipeline::new(RerankConfig::default()),
     );
-    // Wire up ContextAssembler with PostgreSQL-backed data sources.
+
+    // Wire up ContextAssembler with PostgreSQL-backed data sources + optional Redis.
     let memory_repo = MemoryRepo::new(pool.clone());
     let search_repo = SearchRepo::new(pool.clone());
-    let assembler = AssembleServiceImpl::new(
-        ContextRouter::new(),
-        ContextAssembler::new()
-            .with_memory(Arc::new(MemoryRepoAdapter::from(memory_repo)))
-            .with_search(Arc::new(SearchRepoAdapter::from(search_repo)))
-            .with_canonical_user(Arc::new(CanonicalUserAdapter::from(
-                CanonicalUserManager::new(pool.clone()),
-            )))
-            .with_shared_task(Arc::new(SharedTaskAdapter::from(SharedTaskManager::new(
-                pool.clone(),
-            )))),
-    );
+    let redis_url = std::env::var("REDIS_URL")
+        .unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
+
+    let assembler = match redis::Client::open(redis_url.as_str()) {
+        Ok(client) => match client.get_tokio_connection_manager().await {
+            Ok(redis_conn) => {
+                println!("✅ Redis hot context connected: {}", redis_url);
+                let hot_ctx = HotContextRepo::new(redis_conn);
+                AssembleServiceImpl::new(
+                    ContextRouter::new(),
+                    ContextAssembler::new()
+                        .with_hot_context(Arc::new(HotContextAdapter::from(hot_ctx)))
+                        .with_memory(Arc::new(MemoryRepoAdapter::from(memory_repo)))
+                        .with_search(Arc::new(SearchRepoAdapter::from(search_repo)))
+                        .with_canonical_user(Arc::new(CanonicalUserAdapter::from(
+                            CanonicalUserManager::new(pool.clone()),
+                        )))
+                        .with_shared_task(Arc::new(SharedTaskAdapter::from(SharedTaskManager::new(
+                            pool.clone(),
+                        )))),
+                )
+            }
+            Err(e) => {
+                println!("⚠️  Redis connection failed ({}), hot context degraded", e);
+                build_degraded_assembler(memory_repo, search_repo, pool.clone())
+            }
+        },
+        Err(e) => {
+            println!("⚠️  Redis client creation failed ({}), hot context degraded", e);
+            build_degraded_assembler(memory_repo, search_repo, pool.clone())
+        }
+    };
+
     let canonical_user = CanonicalUserManager::new(pool.clone());
     let shared_task = SharedTaskManager::new(pool.clone());
     let version = VersionManager::new(pool.clone());
@@ -123,6 +144,26 @@ async fn main() -> anyhow::Result<()> {
 
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+/// Build a ContextAssembler without Redis hot context (degraded mode).
+fn build_degraded_assembler(
+    memory_repo: MemoryRepo,
+    search_repo: SearchRepo,
+    pool: Pool,
+) -> AssembleServiceImpl {
+    AssembleServiceImpl::new(
+        ContextRouter::new(),
+        ContextAssembler::new()
+            .with_memory(Arc::new(MemoryRepoAdapter::from(memory_repo)))
+            .with_search(Arc::new(SearchRepoAdapter::from(search_repo)))
+            .with_canonical_user(Arc::new(CanonicalUserAdapter::from(
+                CanonicalUserManager::new(pool.clone()),
+            )))
+            .with_shared_task(Arc::new(SharedTaskAdapter::from(SharedTaskManager::new(
+                pool,
+            )))),
+    )
 }
 
 async fn health() -> &'static str {

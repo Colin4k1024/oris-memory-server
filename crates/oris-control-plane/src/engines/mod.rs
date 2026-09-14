@@ -1,4 +1,5 @@
-//! Pluggable memory engine implementations — Mem0 (§3.6) and Cognee (§3.7).
+//! Pluggable memory engine implementations — Mem0 (§3.6), Cognee (§3.7),
+//! and Graphiti (§3.8).
 //!
 //! These are concrete `MemoryEngine` implementations that wrap external
 //! memory system REST APIs. Each engine is isolated behind the
@@ -12,11 +13,15 @@
 //!   delete propagation, idempotency, Chinese recall quality.
 //! - §3.7 — Cognee: enterprise semantic relationship graph; multi-hop
 //!   accuracy, entity duplication, relationship correctness, source tracing.
+//! - §3.8 — Graphiti: temporal (bi-temporal) context graph; fact validity
+//!   windows, source provenance, dual-temporal queries. Optional, Phase 2+.
 //! - [`crate::engine`] — defines the `MemoryEngine` trait, `EngineRegistry`,
 //!   and `CircuitBreaker` infrastructure.
 
 pub mod cognee;
+pub mod graphiti;
 pub mod mem0;
 
 pub use cognee::CogneeEngine;
+pub use graphiti::GraphitiEngine;
 pub use mem0::Mem0Engine;

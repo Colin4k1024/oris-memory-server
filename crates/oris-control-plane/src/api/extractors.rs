@@ -173,6 +173,9 @@ impl From<ForgetError> for ApiError {
             ForgetError::NotFound(id) => Self::not_found(format!("memory {id} not found")),
             ForgetError::Database(e) => Self::internal(format!("database error: {e}")),
             ForgetError::Outbox(e) => Self::internal(format!("outbox error: {e}")),
+            ForgetError::LegalHold(msg) => {
+                Self::Forbidden(format!("legal hold prevents deletion: {msg}"))
+            }
         }
     }
 }

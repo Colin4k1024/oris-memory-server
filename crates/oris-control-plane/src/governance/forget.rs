@@ -21,6 +21,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use super::audit::{AuditEntry, AuditLogger};
+use crate::compliance::{LegalHoldError, LegalHoldManager};
 
 /// Maximum recursion depth for [`ForgetManager::cascade_forget`].
 ///
@@ -50,6 +51,14 @@ impl ForgetManager {
         memory_id: Uuid,
         requested_by: &str,
     ) -> Result<(), ForgetError> {
+        // 0. Check legal hold — if held, refuse deletion.
+        let hold_mgr = LegalHoldManager::new(self.pool.clone());
+        if hold_mgr.is_under_hold(memory_id).await? {
+            return Err(ForgetError::LegalHold(format!(
+                "memory {memory_id} is under legal hold"
+            )));
+        }
+
         // 1. Revoke the memory item.
         let result = sqlx::query(
             r#"UPDATE memory_item SET status = 'revoked', updated_at = NOW()
@@ -91,6 +100,14 @@ impl ForgetManager {
         memory_id: Uuid,
         requested_by: &str,
     ) -> Result<(), ForgetError> {
+        // 0. Check legal hold — if held, refuse deletion.
+        let hold_mgr = LegalHoldManager::new(self.pool.clone());
+        if hold_mgr.is_under_hold(memory_id).await? {
+            return Err(ForgetError::LegalHold(format!(
+                "memory {memory_id} is under legal hold"
+            )));
+        }
+
         // 1. Log to audit first (before any deletion).
         let entry = build_forget_audit_entry(memory_id, requested_by, "hard_delete");
         let logger = AuditLogger::new(self.pool.clone());
@@ -248,6 +265,24 @@ pub enum ForgetError {
     /// An outbox enqueue failed.
     #[error("outbox enqueue failed: {0}")]
     Outbox(#[from] OutboxError),
+
+    /// A legal hold prevents deletion.
+    #[error("legal hold active: {0}")]
+    LegalHold(String),
+}
+
+impl From<LegalHoldError> for ForgetError {
+    fn from(e: LegalHoldError) -> Self {
+        match e {
+            LegalHoldError::HoldActive(id) => {
+                ForgetError::LegalHold(format!("memory {id} is under legal hold"))
+            }
+            LegalHoldError::NotFound(id) => {
+                ForgetError::LegalHold(format!("legal hold not found: {id}"))
+            }
+            LegalHoldError::Database(e) => ForgetError::Database(e),
+        }
+    }
 }
 
 #[cfg(test)]

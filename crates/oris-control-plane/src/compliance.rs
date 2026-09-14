@@ -68,7 +68,23 @@ impl LegalHoldManager {
 
     /// Ensure the `legal_hold` table exists. Idempotent.
     async fn ensure_schema(&self) -> Result<(), LegalHoldError> {
-        sqlx::query(LEGAL_HOLD_DDL).execute(&self.pool).await?;
+        sqlx::query(
+            r#"CREATE TABLE IF NOT EXISTS legal_hold (
+                memory_id  UUID PRIMARY KEY,
+                tenant_id  TEXT NOT NULL,
+                reason     TEXT NOT NULL,
+                case_id    TEXT,
+                placed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )"#,
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            r#"CREATE INDEX IF NOT EXISTS idx_legal_hold_tenant
+               ON legal_hold (tenant_id, placed_at DESC)"#,
+        )
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 

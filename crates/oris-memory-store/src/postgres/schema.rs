@@ -223,16 +223,24 @@ CREATE INDEX IF NOT EXISTS idx_approval_status
 "#;
 
 /// RLS policy DDL.
+///
+/// Uses DROP + CREATE pattern for PG15+ compatibility (CREATE POLICY IF NOT
+/// EXISTS is not supported before PG15; this approach works on all versions).
 pub const RLS_DDL: &str = r#"
 ALTER TABLE memory_item ENABLE ROW LEVEL SECURITY;
 ALTER TABLE canonical_user_profile ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shared_task_context ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS tenant_isolation ON memory_item
+DROP POLICY IF EXISTS tenant_isolation ON memory_item;
+CREATE POLICY tenant_isolation ON memory_item
     USING (tenant_id = current_setting('app.tenant_id', true));
-CREATE POLICY IF NOT EXISTS tenant_isolation_user ON canonical_user_profile
+
+DROP POLICY IF EXISTS tenant_isolation_user ON canonical_user_profile;
+CREATE POLICY tenant_isolation_user ON canonical_user_profile
     USING (organization_id = current_setting('app.tenant_id', true));
-CREATE POLICY IF NOT EXISTS tenant_isolation_task ON shared_task_context
+
+DROP POLICY IF EXISTS tenant_isolation_task ON shared_task_context;
+CREATE POLICY tenant_isolation_task ON shared_task_context
     USING (organization_scope = current_setting('app.tenant_id', true));
 "#;
 
