@@ -4,3 +4,4 @@ Cargo.lock
 *.db
 .oris/
 .reasonix/
+reasonix.toml
