@@ -1,11 +1,16 @@
-//! Pluggable Memory Engine adapter trait and registry.
+//! Pluggable Memory Engine registry, circuit breaker, and NoopEngine.
 //!
-//! Defines the contract that external memory engines (Mem0, Cognee, Graphiti)
-//! must satisfy to be integrated as replaceable Data Plane components behind
-//! the Enterprise Context & Memory Service control plane.
+//! The engine contract types (`MemoryEngine`, `EngineQuery`, `EngineResult`,
+//! `EngineWriteItem`, `EngineCapabilities`, `EngineError`, `EngineHealth`)
+//! are defined once in [`oris_memory_contract::engine_contract`] and
+//! re-exported here for convenience.
 //!
-//! Each engine is isolated with its own timeout and circuit breaker so that
-//! a failure in one engine never blocks the canonical PostgreSQL baseline.
+//! This module adds the control-plane-specific infrastructure:
+//! - [`CircuitBreaker`] — per-engine failure isolation
+//! - [`EngineRegistry`] — registry with circuit breakers and **parallel**
+//!   multi-engine search (fixes #49 — `search_all` now uses
+//!   `futures_util::future::join_all` instead of sequential `for` loop)
+//! - [`NoopEngine`] — testing placeholder
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -14,95 +19,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
-/// Capabilities advertised by an engine implementation.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct EngineCapabilities {
-    pub semantic_search: bool,
-    pub keyword_search: bool,
-    pub graph_search: bool,
-    pub temporal_search: bool,
-    pub entity_linking: bool,
-    pub ontology_grounding: bool,
-}
-
-/// A query dispatched to a specific engine.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EngineQuery {
-    pub text: String,
-    pub tenant_id: String,
-    pub user_id: Option<String>,
-    pub task_id: Option<String>,
-    pub top_k: usize,
-    pub filters: HashMap<String, serde_json::Value>,
-}
-
-impl Default for EngineQuery {
-    fn default() -> Self {
-        Self {
-            text: String::new(),
-            tenant_id: "default".into(),
-            user_id: None,
-            task_id: None,
-            top_k: 10,
-            filters: HashMap::new(),
-        }
-    }
-}
-
-/// A single result returned by an engine.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EngineResult {
-    pub engine_name: String,
-    pub memory_id: String,
-    pub content: String,
-    pub score: f64,
-    pub metadata: serde_json::Value,
-    pub evidence_refs: Vec<String>,
-}
-
-/// Engine health status.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EngineHealth {
-    Healthy,
-    Degraded,
-    Unreachable,
-}
-
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum EngineError {
-    #[error("engine timeout after {0:?}")]
-    Timeout(Duration),
-    #[error("engine error: {0}")]
-    Internal(String),
-    #[error("circuit breaker open for engine {0}")]
-    CircuitOpen(String),
-    #[error("engine not found: {0}")]
-    NotFound(String),
-}
-
-/// The contract that pluggable memory engines implement.
-#[async_trait]
-pub trait MemoryEngine: Send + Sync {
-    fn name(&self) -> &str;
-    fn capabilities(&self) -> EngineCapabilities;
-    async fn search(&self, query: &EngineQuery) -> Result<Vec<EngineResult>, EngineError>;
-    async fn write(&self, item: &EngineWriteItem) -> Result<(), EngineError>;
-    async fn delete(&self, id: &str) -> Result<(), EngineError>;
-    async fn health(&self) -> Result<EngineHealth, EngineError>;
-}
-
-/// A memory item to be written to an engine.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EngineWriteItem {
-    pub memory_id: String,
-    pub tenant_id: String,
-    pub content: String,
-    pub memory_type: String,
-    pub scope: String,
-    pub metadata: serde_json::Value,
-    pub evidence_refs: Vec<String>,
-}
+// Re-export all contract types so downstream code that does
+// `use crate::engine::{EngineQuery, MemoryEngine, ...}` still works.
+pub use oris_memory_contract::engine_contract::{
+    EngineCapabilities, EngineError, EngineHealth, EngineQuery, EngineResult, EngineWriteItem,
+    MemoryEngine,
+};
 
 // ─────────────────────────────────────────────────────────────────────
 // Circuit Breaker
@@ -279,16 +201,36 @@ impl EngineRegistry {
         }
     }
 
-    /// Search all healthy engines in parallel and merge results.
+    /// Search all healthy engines **in parallel** and merge results.
+    ///
+    /// Uses `futures_util::future::join_all` so that the total latency is the
+    /// maximum of individual engine latencies, not the sum. Each engine is
+    /// still isolated by its own circuit breaker and timeout.
     pub async fn search_all(&self, query: &EngineQuery) -> Vec<EngineResult> {
         let names = self.engine_names().await;
-        let mut results = Vec::new();
-        for name in names {
-            if let Ok(r) = self.search(&name, query).await {
-                results.extend(r);
-            }
-        }
+
+        // Collect futures for each engine search. We clone `self` as `Arc`
+        // is not needed — we capture `&self` which lives long enough.
+        let futures: Vec<_> = names
+            .iter()
+            .map(|name| self.search(name, query))
+            .collect();
+
+        // Run all searches concurrently.
+        let results = futures_util::future::join_all(futures).await;
+
         results
+            .into_iter()
+            .flatten()
+            .collect()
+    }
+
+    /// Search all healthy engines **in parallel** (alias for `search_all`).
+    ///
+    /// This method is kept for API compatibility; it delegates to
+    /// [`search_all`](Self::search_all).
+    pub async fn search_all_parallel(&self, query: &EngineQuery) -> Vec<EngineResult> {
+        self.search_all(query).await
     }
 
     pub async fn health_all(&self) -> HashMap<String, EngineHealth> {
@@ -361,6 +303,10 @@ impl MemoryEngine for NoopEngine {
         Ok(EngineHealth::Healthy)
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -460,5 +406,86 @@ mod tests {
         let caps = EngineCapabilities::default();
         assert!(!caps.semantic_search);
         assert!(!caps.graph_search);
+    }
+
+    /// Verify that `search_all` runs engines in parallel (not sequentially).
+    ///
+    /// Each engine sleeps for 50ms. If run sequentially, total time ≥ 100ms.
+    /// If run in parallel, total time < 100ms.
+    #[tokio::test]
+    async fn search_all_runs_in_parallel() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::time::Instant;
+
+        struct SlowEngine {
+            name: String,
+            counter: Arc<AtomicUsize>,
+        }
+
+        #[async_trait]
+        impl MemoryEngine for SlowEngine {
+            fn name(&self) -> &str {
+                &self.name
+            }
+            fn capabilities(&self) -> EngineCapabilities {
+                EngineCapabilities::default()
+            }
+            async fn search(&self, _q: &EngineQuery) -> Result<Vec<EngineResult>, EngineError> {
+                self.counter.fetch_add(1, Ordering::SeqCst);
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                Ok(vec![EngineResult {
+                    engine_name: self.name.clone(),
+                    memory_id: None,
+                    content: "result".into(),
+                    score: 1.0,
+                    metadata: serde_json::Value::Null,
+                    evidence_refs: vec![],
+                }])
+            }
+            async fn write(&self, _i: &EngineWriteItem) -> Result<(), EngineError> {
+                Ok(())
+            }
+            async fn delete(&self, _id: &str) -> Result<(), EngineError> {
+                Ok(())
+            }
+            async fn health(&self) -> Result<EngineHealth, EngineError> {
+                Ok(EngineHealth::Healthy)
+            }
+        }
+
+        let counter = Arc::new(AtomicUsize::new(0));
+        let registry = EngineRegistry::new();
+        registry
+            .register(
+                Arc::new(SlowEngine {
+                    name: "slow-a".into(),
+                    counter: counter.clone(),
+                }),
+                CircuitBreaker::new(100, Duration::from_secs(60), Duration::from_secs(2)),
+            )
+            .await;
+        registry
+            .register(
+                Arc::new(SlowEngine {
+                    name: "slow-b".into(),
+                    counter: counter.clone(),
+                }),
+                CircuitBreaker::new(100, Duration::from_secs(60), Duration::from_secs(2)),
+            )
+            .await;
+
+        let query = EngineQuery::default();
+        let start = Instant::now();
+        let results = registry.search_all(&query).await;
+        let elapsed = start.elapsed();
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(counter.load(Ordering::SeqCst), 2);
+        // Parallel: total should be well under 100ms (sequential would be ≥100ms).
+        assert!(
+            elapsed < Duration::from_millis(100),
+            "search_all took {:?}, expected < 100ms (parallel)",
+            elapsed
+        );
     }
 }

@@ -57,6 +57,14 @@ CREATE INDEX IF NOT EXISTS idx_memory_embedding
     ON memory_item USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
 
+-- Full-text search column (generated from content for FTS queries)
+ALTER TABLE memory_item ADD COLUMN IF NOT EXISTS search_tsv tsvector
+    GENERATED ALWAYS AS (to_tsvector('simple', coalesce(content, '')) STORED;
+
+-- GIN index for full-text search
+CREATE INDEX IF NOT EXISTS idx_memory_fts
+    ON memory_item USING GIN (search_tsv);
+
 -- ──────────────────── canonical_user_profile ──────────────────
 CREATE TABLE IF NOT EXISTS canonical_user_profile (
     user_id          TEXT PRIMARY KEY,
@@ -309,6 +317,10 @@ mod tests {
         assert!(SCHEMA_DDL.contains("approval_request"));
         assert!(SCHEMA_DDL.contains("vector(1536)"));
         assert!(SCHEMA_DDL.contains("hnsw"));
+        assert!(SCHEMA_DDL.contains("search_tsv"));
+        assert!(SCHEMA_DDL.contains("idx_memory_fts"));
+        assert!(SCHEMA_DDL.contains("explicit_preferences"));
+        assert!(SCHEMA_DDL.contains("inferred_preferences"));
     }
 
     #[test]

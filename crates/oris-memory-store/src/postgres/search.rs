@@ -1,5 +1,5 @@
-//! Hybrid search: structured filter + keyword (ILIKE) + vector (pgvector cosine).
-
+//! Hybrid search: structured filter + keyword (PostgreSQL full-text search)
+//! + vector (pgvector cosine).
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
@@ -66,13 +66,13 @@ impl SearchRepo {
             bind_idx += 1;
         }
 
-        // Keyword filter (ILIKE on content)
+        // Keyword filter (PostgreSQL full-text search on search_tsv)
         let has_keyword = params
             .query_text
             .as_deref()
             .is_some_and(|t| !t.trim().is_empty());
         if has_keyword {
-            conditions.push(format!("content ILIKE ${bind_idx}"));
+            conditions.push(format!("search_tsv @@ plainto_tsquery('simple', ${bind_idx}"));
             bind_idx += 1;
         }
 
@@ -95,12 +95,12 @@ impl SearchRepo {
             // Combined keyword + vector search with weighted scoring
             let query_str = format!(
                 r#"SELECT *,
-                    (CASE WHEN content ILIKE ${p_kw} THEN ${p_kw_w} ELSE 0 END
+                    (CASE WHEN search_tsv @@ plainto_tsquery('simple', ${p_kw}) THEN ${p_kw_w} ELSE 0 END
                      + (1.0 - (embedding <=> ${p_vec}::vector)) * ${p_vec_w}
                      + authority_rank * ${p_auth_w}
                      + (1.0 / (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0 + 1.0)) * ${p_fresh_w}
                     ) AS score,
-                    (CASE WHEN content ILIKE ${p_kw} THEN TRUE ELSE FALSE END) AS matched_keyword,
+                    (CASE WHEN search_tsv @@ plainto_tsquery('simple', ${p_kw}) THEN TRUE ELSE FALSE END) AS matched_keyword,
                     TRUE AS matched_vector
                    FROM memory_item
                    CROSS JOIN LATERAL (
@@ -126,11 +126,11 @@ impl SearchRepo {
                 q = q.bind(min_conf);
             }
             if has_keyword {
-                q = q.bind(format!("%{}%", params.query_text.as_deref().unwrap_or("")));
+                q = q.bind(params.query_text.as_deref().unwrap_or(""));
             }
 
             q = q
-                .bind(format!("%{}%", params.query_text.as_deref().unwrap_or("")))
+                .bind(params.query_text.as_deref().unwrap_or(""))
                 .bind(params.keyword_weight)
                 .bind(encode_vector(embedding))
                 .bind(params.vector_weight)
@@ -169,7 +169,7 @@ impl SearchRepo {
             // Keyword-only search
             let query_str = format!(
                 r#"SELECT *,
-                    (CASE WHEN content ILIKE ${p_kw} THEN ${p_kw_w} ELSE 0 END
+                    (CASE WHEN search_tsv @@ plainto_tsquery('simple', ${p_kw}) THEN ${p_kw_w} ELSE 0 END
                      + authority_rank * ${p_auth_w}
                      + (1.0 / (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0 + 1.0)) * ${p_fresh_w}
                     ) AS score
@@ -198,7 +198,7 @@ impl SearchRepo {
             }
 
             q = q
-                .bind(format!("%{}%", params.query_text.as_deref().unwrap_or("")))
+                .bind(params.query_text.as_deref().unwrap_or(""))
                 .bind(params.keyword_weight)
                 .bind(params.authority_weight)
                 .bind(params.freshness_weight)

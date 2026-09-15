@@ -233,6 +233,20 @@ fn merge_profiles_impl(profiles: Vec<CanonicalUserProfile>) -> MergedUserProfile
 
     // JSON fields.
     let preferences = merge_json_object("preferences", &sorted, |p| &p.preferences, &mut conflicts);
+    // Explicit preferences: highest-authority wins (user_explicit > iam/hr > agent).
+    let explicit_preferences = merge_json_object(
+        "explicit_preferences",
+        &sorted,
+        |p| &p.explicit_preferences,
+        &mut conflicts,
+    );
+    // Inferred preferences: merge all sources but never override explicit.
+    let inferred_preferences = merge_json_object(
+        "inferred_preferences",
+        &sorted,
+        |p| &p.inferred_preferences,
+        &mut conflicts,
+    );
     let consent_scope = resolve_json(
         "consent_scope",
         &sorted,
@@ -271,6 +285,8 @@ fn merge_profiles_impl(profiles: Vec<CanonicalUserProfile>) -> MergedUserProfile
         language,
         timezone,
         preferences,
+        explicit_preferences,
+        inferred_preferences,
         common_entities,
         active_projects,
         consent_scope,
@@ -303,6 +319,8 @@ fn empty_profile() -> CanonicalUserProfile {
         language: None,
         timezone: None,
         preferences: serde_json::Value::Null,
+        explicit_preferences: serde_json::Value::Null,
+        inferred_preferences: serde_json::Value::Null,
         common_entities: Vec::new(),
         active_projects: Vec::new(),
         consent_scope: serde_json::Value::Null,
@@ -458,6 +476,8 @@ mod tests {
             language: None,
             timezone: None,
             preferences: serde_json::Value::Null,
+            explicit_preferences: serde_json::Value::Null,
+            inferred_preferences: serde_json::Value::Null,
             common_entities: Vec::new(),
             active_projects: Vec::new(),
             consent_scope: serde_json::Value::Null,

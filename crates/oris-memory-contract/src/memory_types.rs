@@ -242,6 +242,15 @@ pub struct CanonicalUserProfile {
     pub language: Option<String>,
     pub timezone: Option<String>,
     pub preferences: Value,
+    /// Explicit preferences set by the user or authoritative systems (IAM/HR).
+    /// Strong consistency, versioned, auditable. Takes priority over inferred.
+    #[serde(default)]
+    pub explicit_preferences: Value,
+    /// Inferred preferences projected from Mem0 or behavioral analysis.
+    /// Eventually consistent, carries confidence, can be corrected/forgotten.
+    /// Must NOT override HR/IAM master data or explicit user settings.
+    #[serde(default)]
+    pub inferred_preferences: Value,
     pub common_entities: Vec<Value>,
     pub active_projects: Vec<Value>,
     pub consent_scope: Value,

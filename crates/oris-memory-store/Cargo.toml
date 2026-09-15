@@ -11,7 +11,7 @@ homepage = "https://github.com/Colin4k1024/Oris"
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
-oris-memory-contract = { version = "0.1.0", path = "../oris-memory-contract" }
+oris-memory-contract = { version = "0.2.0", path = "../oris-memory-contract" }
 chrono = { version = "0.4", features = ["serde"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }

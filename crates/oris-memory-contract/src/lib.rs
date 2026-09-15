@@ -8,7 +8,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
+pub mod engine_contract;
 pub mod memory_types;
+
+pub use engine_contract::*;
 pub use memory_types::*;
 
 pub const EXPERIENCE_BUNDLE_V1: &str = "oris.experience.bundle/v1";

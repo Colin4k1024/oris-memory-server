@@ -17,12 +17,12 @@ impl UserRepo {
         sqlx::query(
             r#"INSERT INTO canonical_user_profile (
                 user_id, organization_id, factory_id, identity_links, role, position,
-                language, timezone, preferences, common_entities, active_projects,
+                language, timezone, preferences, explicit_preferences, inferred_preferences, common_entities, active_projects,
                 consent_scope, privacy_class, source, authority_level, version,
                 valid_from, valid_to, last_verified_at, updated_at
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-                $17, $18, $19, NOW()
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+                $18, $19, $20, $21, NOW()
             )
             ON CONFLICT (user_id) DO UPDATE SET
                 organization_id = EXCLUDED.organization_id,
@@ -33,6 +33,8 @@ impl UserRepo {
                 language = EXCLUDED.language,
                 timezone = EXCLUDED.timezone,
                 preferences = EXCLUDED.preferences,
+                explicit_preferences = EXCLUDED.explicit_preferences,
+                inferred_preferences = EXCLUDED.inferred_preferences,
                 common_entities = EXCLUDED.common_entities,
                 active_projects = EXCLUDED.active_projects,
                 consent_scope = EXCLUDED.consent_scope,
@@ -55,6 +57,8 @@ impl UserRepo {
         .bind(&profile.language)
         .bind(&profile.timezone)
         .bind(&profile.preferences)
+        .bind(&profile.explicit_preferences)
+        .bind(&profile.inferred_preferences)
         .bind(serde_json::to_value(&profile.common_entities).unwrap_or_default())
         .bind(serde_json::to_value(&profile.active_projects).unwrap_or_default())
         .bind(&profile.consent_scope)
@@ -141,6 +145,8 @@ fn map_row_to_profile(row: &sqlx::postgres::PgRow) -> Result<CanonicalUserProfil
         language: row.try_get("language")?,
         timezone: row.try_get("timezone")?,
         preferences: row.try_get("preferences").unwrap_or_default(),
+        explicit_preferences: row.try_get("explicit_preferences").unwrap_or_default(),
+        inferred_preferences: row.try_get("inferred_preferences").unwrap_or_default(),
         common_entities: row
             .try_get::<serde_json::Value, _>("common_entities")
             .unwrap_or_default()

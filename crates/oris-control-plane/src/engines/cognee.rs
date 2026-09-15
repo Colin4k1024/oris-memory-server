@@ -233,7 +233,7 @@ impl CogneeEngine {
                     let metadata = item.metadata.unwrap_or(serde_json::Value::Null);
                     return Some(EngineResult {
                         engine_name: "cognee".into(),
-                        memory_id: id,
+                        memory_id: Some(id),
                         content,
                         score,
                         metadata,
@@ -244,7 +244,7 @@ impl CogneeEngine {
                 let content = v.to_string();
                 Some(EngineResult {
                     engine_name: "cognee".into(),
-                    memory_id: uuid::Uuid::new_v4().to_string(),
+                    memory_id: Some(uuid::Uuid::new_v4().to_string()),
                     content,
                     score: 0.0,
                     metadata: v,
@@ -579,7 +579,7 @@ mod tests {
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].engine_name, "cognee");
-        assert_eq!(results[0].memory_id, "c1");
+        assert_eq!(results[0].memory_id.as_deref(), Some("c1"));
         assert!((results[0].score - 0.88).abs() < 0.01);
         assert_eq!(results[0].content, "entity A relates to B");
         mock.assert_async().await;

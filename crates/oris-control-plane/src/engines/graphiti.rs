@@ -228,7 +228,7 @@ impl MemoryEngine for GraphitiEngine {
                     .into_iter()
                     .map(|r| EngineResult {
                         engine_name: "graphiti".into(),
-                        memory_id: r.id.unwrap_or_default(),
+                        memory_id: Some(r.id.unwrap_or_default()),
                         content: r
                             .fact
                             .or(r.content)
@@ -387,7 +387,7 @@ mod tests {
         let eng = make_engine(&server);
         let results = eng.search(&make_query("bearing history")).await.unwrap();
         assert_eq!(results.len(), 2);
-        assert_eq!(results[0].memory_id, "ep-1");
+        assert_eq!(results[0].memory_id.as_deref(), Some("ep-1"));
         assert!(results[0].score > 0.9);
         m.assert_async().await;
     }

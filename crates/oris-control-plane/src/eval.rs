@@ -433,7 +433,7 @@ impl BenchmarkRunner {
 
             let retrieved: Vec<Uuid> = results
                 .iter()
-                .filter_map(|r| Uuid::parse_str(&r.memory_id).ok())
+                .filter_map(|r| Uuid::parse_str(r.memory_id.as_deref().unwrap_or_default()).ok())
                 .collect();
 
             let used_tokens: usize = results.iter().map(|r| r.content.len() / 4).sum();
@@ -441,7 +441,7 @@ impl BenchmarkRunner {
                 segments: results
                     .iter()
                     .map(|r| {
-                        let mid = Uuid::parse_str(&r.memory_id).unwrap_or_default();
+                        let mid = Uuid::parse_str(r.memory_id.as_deref().unwrap_or_default()).unwrap_or_default();
                         ContextSegment {
                             memory_id: mid,
                             content: r.content.clone(),

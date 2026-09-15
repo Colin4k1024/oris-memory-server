@@ -48,7 +48,7 @@ ed25519-dalek = "2"
 
 # Gene store (SQLite-based) — local workspace path so local changes take effect
 oris-memory-store = { version = "0.3.0", path = "../oris-memory-store" }
-oris-memory-contract = { version = "0.1.0", path = "../oris-memory-contract" }
+oris-memory-contract = { version = "0.2.0", path = "../oris-memory-contract" }
 
 # SQLite
 rusqlite = { version = "0.32", features = ["bundled"] }

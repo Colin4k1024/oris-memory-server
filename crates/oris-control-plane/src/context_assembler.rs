@@ -1387,6 +1387,8 @@ mod tests {
             language: Some("en".into()),
             timezone: Some("UTC".into()),
             preferences: json!({"theme": "dark"}),
+            explicit_preferences: json!({}),
+            inferred_preferences: json!({}),
             common_entities: vec![],
             active_projects: vec![],
             consent_scope: json!(null),

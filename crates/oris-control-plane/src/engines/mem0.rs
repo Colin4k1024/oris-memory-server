@@ -224,7 +224,7 @@ impl MemoryEngine for Mem0Engine {
             .into_iter()
             .map(|m| EngineResult {
                 engine_name: "mem0".into(),
-                memory_id: m.id,
+                memory_id: Some(m.id),
                 content: m.memory,
                 score: m.score.unwrap_or(0.0),
                 metadata: m.metadata.unwrap_or(serde_json::Value::Null),
@@ -469,7 +469,7 @@ mod tests {
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].engine_name, "mem0");
-        assert_eq!(results[0].memory_id, "m1");
+        assert_eq!(results[0].memory_id.as_deref(), Some("m1"));
         assert!((results[0].score - 0.95).abs() < 0.01);
         assert_eq!(results[0].content, "user likes rust");
         mock.assert_async().await;
